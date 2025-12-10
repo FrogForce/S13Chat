@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S13Chat | Lime</title>
+    <style>
+        :root {
+            /* THEME VARIABLES: Lime & Dark Green */
+            --bg-dark: #050a05;       /* Sidebar background */
+            --bg-mid: #0a140a;        /* Chat background */
+            --bg-light: #112211;      /* Input/Header background */
+            --accent: #39ff14;        /* Neon Lime */
+            --accent-dim: #28b810;    /* Darker Lime */
+            --text-main: #e0ffe0;     /* White-ish Green */
+            --text-muted: #6aa86a;    /* Muted Green */
+            --shadow: 0 4px 15px rgba(57, 255, 20, 0.1);
+        }
+
+        /* RESET & BASICS */
+        body { 
+            margin: 0; 
+            font-family: 'Segoe UI', 'Roboto', sans-serif; 
+            background-color: var(--bg-mid); 
+            color: var(--text-main); 
+            display: flex; 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+
+        /* ANIMATIONS */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes glowPulse { 0% { box-shadow: 0 0 5px var(--accent-dim); } 50% { box-shadow: 0 0 15px var(--accent); } 100% { box-shadow: 0 0 5px var(--accent-dim); } }
+        @keyframes slideInLeft { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* SIDEBAR (SERVERS) */
+        #server-list { 
+            width: 72px; 
+            background-color: var(--bg-dark); 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding-top: 15px; 
+            overflow-y: auto; 
+            z-index: 2;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+        }
+        
+        .server-icon { 
+            width: 48px; 
+            height: 48px; 
+            background-color: var(--bg-light); 
+            border-radius: 50%; 
+            margin-bottom: 10px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            font-weight: bold; 
+            color: var(--text-muted); 
+            border: 2px solid transparent;
+        }
+        
+        .server-icon:hover { 
+            background-color: var(--accent); 
+            color: var(--bg-dark); 
+            border-radius: 16px; 
+            box-shadow: 0 0 15px var(--accent);
+        }
+        
+        .server-icon.active { 
+            background-color: var(--accent); 
+            color: var(--bg-dark); 
+            border-radius: 16px; 
+        }
+
+        /* MAIN AREA */
+        #chat-container { flex: 1; display: flex; flex-direction: column; background-color: var(--bg-mid); position: relative; }
+        
+        /* HEADER */
+        header { 
+            height: 50px; 
+            background-color: var(--bg-light);
+            border-bottom: 2px solid #1a331a; 
+            display: flex; 
+            align-items: center; 
+            padding: 0 20px; 
+            font-weight: 800; 
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #channel-name { color: var(--accent); text-shadow: 0 0 5px rgba(57, 255, 20, 0.3); }
+        #channel-name::before { content: '# '; color: var(--text-muted); }
+
+        /* MESSAGES AREA */
+        #messages { 
+            flex: 1; 
+            padding: 20px; 
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+            scroll-behavior: smooth;
+        }
+
+        .message { 
+            display: flex; 
+            gap: 15px; 
+            animation: fadeIn 0.4s ease-out forwards; 
+            padding: 5px 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .message:hover { background-color: rgba(57, 255, 20, 0.03); }
+
+        .avatar { 
+            width: 40px; 
+            height: 40px; 
+            border-radius: 50%; 
+            background: linear-gradient(135deg, var(--accent), var(--bg-light)); 
+            flex-shrink: 0; 
+            box-shadow: 0 0 5px var(--accent-dim);
+        }
+        
+        .msg-content { display: flex; flex-direction: column; width: 100%; }
+        
+        .msg-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; }
+        .username { font-weight: bold; color: var(--accent); cursor: pointer; }
+        .username:hover { text-decoration: underline; }
+        .timestamp { font-size: 0.7rem; color: var(--text-muted); }
+        
+        .text { 
+            color: var(--text-main); 
+            line-height: 1.4rem; 
+            white-space: pre-wrap; 
+            word-wrap: break-word; 
+            font-size: 0.95rem;
+        }
+
+        /* INPUT AREA */
+        #input-area { padding: 0 20px 25px; background-color: var(--bg-mid); }
+        #input-box { 
+            background-color: var(--bg-light); 
+            border-radius: 12px; 
+            padding: 0 15px; 
+            display: flex; 
+            align-items: center; 
+            border: 1px solid #1a331a;
+            transition: 0.3s;
+        }
+        #input-box:focus-within { 
+            border-color: var(--accent); 
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.1); 
+        }
+        
+        #message-input { 
+            background: transparent; 
+            border: none; 
+            color: var(--text-main); 
+            width: 100%; 
+            height: 44px;
+            font-size: 1rem; 
+            outline: none; 
+        }
+        #message-input::placeholder { color: var(--text-muted); }
+
+        /* MODAL */
+        #login-modal { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.85); 
+            backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center; 
+            z-index: 1000; 
+            animation: fadeIn 0.5s;
+        }
+        .modal-content { 
+            background: var(--bg-light); 
+            padding: 30px; 
+            border-radius: 15px; 
+            width: 320px; 
+            text-align: center; 
+            border: 1px solid var(--accent-dim);
+            box-shadow: 0 0 30px rgba(57, 255, 20, 0.1);
+        }
+        h2 { color: var(--accent); margin-top: 0; text-transform: uppercase; letter-spacing: 2px; }
+        input.config { 
+            padding: 12px; 
+            border-radius: 6px; 
+            border: 1px solid var(--text-muted); 
+            background: var(--bg-dark); 
+            color: var(--accent); 
+            width: 85%;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+            outline: none;
+        }
+        input.config:focus { border-color: var(--accent); box-shadow: 0 0 8px var(--accent-dim); }
+        
+        button.start-btn { 
+            padding: 12px 30px; 
+            background: var(--accent); 
+            border: none; 
+            color: var(--bg-dark); 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: 900; 
+            text-transform: uppercase;
+            transition: 0.3s;
+            width: 100%;
+        }
+        button.start-btn:hover { background: #fff; box-shadow: 0 0 15px #fff; }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 10px; background-color: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background-color: var(--bg-light); border-radius: 5px; border: 2px solid var(--bg-dark); }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--accent-dim); }
+    </style>
+</head>
+<body>
+
+    <div id="login-modal">
+        <div class="modal-content">
+            <h2>S13Chat Terminal</h2>
+            <p style="color: #888; font-size: 0.8rem; margin-bottom: 15px;">SECURE CONNECTION ESTABLISHED</p>
+            <input type="text" id="username-input" class="config" placeholder="ENTER CODENAME" autocomplete="off">
+            <button class="start-btn" onclick="initializeChat()">Connect</button>
+        </div>
+    </div>
+
+    <div id="server-list"></div>
+
+    <div id="chat-container">
+        <header>
+            <span id="channel-name">loading_stream...</span>
+        </header>
+        
+        <div id="messages"></div>
+
+        <div id="input-area">
+            <div id="input-box">
+                <input type="text" id="message-input" placeholder="Message #channel" autocomplete="off">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- HARDCODED CREDENTIALS ---
+        const BIN_ID = "6939ddb7d0ea881f40204bfb";
+        const API_KEY = "$2a$10$D9qmICedOL93qYm9kkuNSeZwTJaWnZeUObCmP.SBXTlW9/MhNcUwS";
+        
+        // --- STATE ---
+        let USERNAME = "Guest";
+        let CURRENT_SERVER = "General";
+        let CURRENT_DATA = { messages: [], servers: [] };
+        let lastMessageCount = 0;
+        
+        const BASE_URL = "https://api.jsonbin.io/v3/b";
+
+        // --- DOM ELEMENTS ---
+        const msgList = document.getElementById('messages');
+        const inputField = document.getElementById('message-input');
+        const channelName = document.getElementById('channel-name');
+        const serverList = document.getElementById('server-list');
+
+        // --- INITIALIZATION ---
+        function initializeChat() {
+            const userInput = document.getElementById('username-input').value.trim();
+            if(!userInput) { alert("CODENAME REQUIRED"); return; }
+            
+            USERNAME = userInput;
+            document.getElementById('login-modal').style.display = 'none';
+            startPolling();
+        }
+
+        // Allow Enter key in login
+        document.getElementById('username-input').addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') initializeChat();
+        });
+
+        // --- CORE FUNCTIONS ---
+
+        async function fetchData() {
+            try {
+                const response = await fetch(`${BASE_URL}/${BIN_ID}/latest`, {
+                    headers: { 'X-Master-Key': API_KEY }
+                });
+                if (!response.ok) throw new Error("Connection failed");
+                const json = await response.json();
+                return json.record;
+            } catch (error) {
+                console.error("Signal Lost:", error);
+                return null;
+            }
+        }
+
+        async function sendData(newData) {
+            try {
+                await fetch(`${BASE_URL}/${BIN_ID}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
+                    body: JSON.stringify(newData)
+                });
+            } catch (error) {
+                console.error("Transmission Error:", error);
+            }
+        }
+
+        function render(data) {
+            if (!data) return;
+            CURRENT_DATA = data;
+
+            // Render Servers (Only if changed count to prevent flickering)
+            const servers = data.servers && data.servers.length ? data.servers : ["General"];
+            if(serverList.childElementCount !== servers.length) {
+                serverList.innerHTML = '';
+                servers.forEach(server => {
+                    const div = document.createElement('div');
+                    div.className = `server-icon ${server === CURRENT_SERVER ? 'active' : ''}`;
+                    div.innerText = server.substring(0, 2).toUpperCase();
+                    div.title = server;
+                    div.onclick = () => switchServer(server);
+                    serverList.appendChild(div);
+                });
+            } else {
+                // Just update active class
+                Array.from(serverList.children).forEach((child, index) => {
+                    child.className = `server-icon ${servers[index] === CURRENT_SERVER ? 'active' : ''}`;
+                });
+            }
+
+            channelName.innerText = CURRENT_SERVER;
+            inputField.placeholder = `Transmit to #${CURRENT_SERVER}`;
+
+            // Filter messages
+            const serverMessages = (data.messages || []).filter(m => m.server === CURRENT_SERVER);
+            
+            // Only re-render if message count changed to keep animations smooth
+            // We use a simple diff here. In a real app we'd use IDs.
+            if(msgList.childElementCount !== serverMessages.length) {
+                msgList.innerHTML = '';
+                serverMessages.forEach(msg => {
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = 'message';
+                    
+                    const date = new Date(msg.timestamp);
+                    const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                    msgDiv.innerHTML = `
+                        <div class="avatar"></div>
+                        <div class="msg-content">
+                            <div class="msg-header">
+                                <span class="username">${msg.user}</span>
+                                <span class="timestamp">${timeString}</span>
+                            </div>
+                            <div class="text">${escapeHtml(msg.text)}</div>
+                        </div>
+                    `;
+                    msgList.appendChild(msgDiv);
+                });
+                // Scroll to bottom
+                msgList.scrollTop = msgList.scrollHeight;
+            }
+        }
+
+        function switchServer(serverName) {
+            CURRENT_SERVER = serverName;
+            msgList.innerHTML = ''; // Clear to force re-render
+            render(CURRENT_DATA);
+        }
+
+        inputField.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && inputField.value.trim() !== "") {
+                const text = inputField.value;
+                inputField.value = "";
+                
+                // Optimistic UI Update (Make it feel instant)
+                const tempMsg = {
+                    user: USERNAME,
+                    text: text,
+                    server: CURRENT_SERVER,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Render immediately locally
+                const tempMessages = [...(CURRENT_DATA.messages || []), tempMsg];
+                render({ ...CURRENT_DATA, messages: tempMessages });
+
+                // Fetch real data and push
+                const latestData = await fetchData();
+                if (!latestData) return;
+
+                let updatedMessages = latestData.messages || [];
+                updatedMessages.push(tempMsg);
+                if (updatedMessages.length > 100) updatedMessages.shift(); // Max 100 msgs
+
+                const payload = {
+                    servers: latestData.servers || ["General", "Gaming", "Music", "Code"],
+                    messages: updatedMessages
+                };
+
+                await sendData(payload);
+            }
+        });
+
+        function escapeHtml(text) {
+            if (!text) return text;
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        let pollingInterval;
+        function startPolling() {
+            fetchData().then(render);
+            if (pollingInterval) clearInterval(pollingInterval);
+            pollingInterval = setInterval(async () => {
+                const data = await fetchData();
+                // Check if data is actually different before heavy rendering logic
+                if (JSON.stringify(data) !== JSON.stringify(CURRENT_DATA)) {
+                    render(data);
+                }
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
