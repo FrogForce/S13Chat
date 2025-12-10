@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S13Chat | Lime</title>
+    <title>S13Chat</title>
     <style>
         :root {
             /* THEME VARIABLES: Lime & Dark Green */
@@ -30,22 +30,28 @@
 
         /* ANIMATIONS */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes glowPulse { 0% { box-shadow: 0 0 5px var(--accent-dim); } 50% { box-shadow: 0 0 15px var(--accent); } 100% { box-shadow: 0 0 5px var(--accent-dim); } }
         @keyframes slideInLeft { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
         /* SIDEBAR (SERVERS) */
-        #server-list { 
+        #server-list-container {
             width: 72px; 
             background-color: var(--bg-dark); 
             display: flex; 
             flex-direction: column; 
             align-items: center; 
             padding-top: 15px; 
-            overflow-y: auto; 
             z-index: 2;
             box-shadow: 2px 0 10px rgba(0,0,0,0.5);
         }
-        
+        #server-list {
+            flex: 1;
+            overflow-y: auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
         .server-icon { 
             width: 48px; 
             height: 48px; 
@@ -60,6 +66,7 @@
             font-weight: bold; 
             color: var(--text-muted); 
             border: 2px solid transparent;
+            font-size: 1.2rem;
         }
         
         .server-icon:hover { 
@@ -74,6 +81,19 @@
             color: var(--bg-dark); 
             border-radius: 16px; 
         }
+
+        /* Server Creation Button */
+        #add-server-btn {
+            background-color: var(--bg-light);
+            color: var(--accent);
+            border: 2px solid var(--accent);
+            margin-bottom: 15px;
+        }
+        #add-server-btn:hover {
+            background-color: var(--accent);
+            color: var(--bg-dark);
+        }
+        #add-server-btn span { font-size: 2rem; line-height: 0.5; }
 
         /* MAIN AREA */
         #chat-container { flex: 1; display: flex; flex-direction: column; background-color: var(--bg-mid); position: relative; }
@@ -223,13 +243,18 @@
     <div id="login-modal">
         <div class="modal-content">
             <h2>S13Chat Terminal</h2>
-            <p style="color: #888; font-size: 0.8rem; margin-bottom: 15px;">SECURE CONNECTION ESTABLISHED</p>
+            <p style="color: #888; font-size: 0.8rem; margin-bottom: 15px;">INITIALIZE CONNECTION</p>
             <input type="text" id="username-input" class="config" placeholder="ENTER CODENAME" autocomplete="off">
             <button class="start-btn" onclick="initializeChat()">Connect</button>
         </div>
     </div>
 
-    <div id="server-list"></div>
+    <div id="server-list-container">
+        <div id="server-list"></div>
+        <div id="add-server-btn" class="server-icon" onclick="promptForNewServer()" title="Create New Server">
+            <span>+</span>
+        </div>
+    </div>
 
     <div id="chat-container">
         <header>
@@ -253,8 +278,7 @@
         // --- STATE ---
         let USERNAME = "Guest";
         let CURRENT_SERVER = "General";
-        let CURRENT_DATA = { messages: [], servers: [] };
-        let lastMessageCount = 0;
+        let CURRENT_DATA = { messages: [], servers: ["General"] }; // Default server for initialization
         
         const BASE_URL = "https://api.jsonbin.io/v3/b";
 
@@ -264,14 +288,24 @@
         const channelName = document.getElementById('channel-name');
         const serverList = document.getElementById('server-list');
 
-        // --- INITIALIZATION ---
+        // --- INITIALIZATION & LOGIN ---
         function initializeChat() {
             const userInput = document.getElementById('username-input').value.trim();
             if(!userInput) { alert("CODENAME REQUIRED"); return; }
             
-            USERNAME = userInput;
+            // Basic User Persistence Simulation (Stores in browser session/local storage)
+            // Note: This is NOT a secure multi-user system, only sets the displayed name.
+            USERNAME = userInput.toUpperCase(); 
+            localStorage.setItem('s13chat_username', USERNAME);
+
             document.getElementById('login-modal').style.display = 'none';
             startPolling();
+        }
+
+        // Check for stored username on load
+        const storedUsername = localStorage.getItem('s13chat_username');
+        if (storedUsername) {
+            document.getElementById('username-input').value = storedUsername;
         }
 
         // Allow Enter key in login
@@ -279,7 +313,7 @@
             if(e.key === 'Enter') initializeChat();
         });
 
-        // --- CORE FUNCTIONS ---
+        // --- CORE FETCH/WRITE FUNCTIONS ---
 
         async function fetchData() {
             try {
@@ -288,6 +322,12 @@
                 });
                 if (!response.ok) throw new Error("Connection failed");
                 const json = await response.json();
+                
+                // Ensure the servers array exists if it's the very first load
+                if (!json.record.servers || json.record.servers.length === 0) {
+                     json.record.servers = ["General"];
+                }
+
                 return json.record;
             } catch (error) {
                 console.error("Signal Lost:", error);
@@ -307,13 +347,54 @@
             }
         }
 
+        // --- SERVER MANAGEMENT ---
+
+        function promptForNewServer() {
+            let serverName = prompt("Enter the new server name (e.g., Development, Feedback, etc.):");
+            if (serverName) {
+                serverName = serverName.trim().replace(/[^a-zA-Z0-9 -]/g, "").substring(0, 15); // Clean and limit length
+                if (serverName && !CURRENT_DATA.servers.includes(serverName)) {
+                    createNewServer(serverName);
+                } else if (serverName) {
+                    alert(`Server "${serverName}" already exists or is invalid.`);
+                }
+            }
+        }
+
+        async function createNewServer(serverName) {
+            const latestData = await fetchData();
+            if (!latestData) return;
+
+            // Add the new server to the list
+            const updatedServers = [...(latestData.servers || []), serverName];
+            
+            const payload = {
+                servers: updatedServers,
+                messages: latestData.messages
+            };
+
+            // Optimistic Update and Switch
+            CURRENT_DATA = payload;
+            switchServer(serverName);
+
+            // Send to DB
+            await sendData(payload);
+        }
+
+        // --- RENDERING ---
+
         function render(data) {
             if (!data) return;
-            CURRENT_DATA = data;
+            
+            // Check if the server list has actually changed
+            const serversChanged = JSON.stringify(data.servers) !== JSON.stringify(CURRENT_DATA.servers);
+            
+            CURRENT_DATA = data; // Update local state
 
-            // Render Servers (Only if changed count to prevent flickering)
-            const servers = data.servers && data.servers.length ? data.servers : ["General"];
-            if(serverList.childElementCount !== servers.length) {
+            // Render Servers (Only if changed to prevent flickering/re-rendering)
+            const servers = data.servers || ["General"];
+            
+            if(serversChanged || serverList.childElementCount === 0) {
                 serverList.innerHTML = '';
                 servers.forEach(server => {
                     const div = document.createElement('div');
@@ -336,9 +417,11 @@
             // Filter messages
             const serverMessages = (data.messages || []).filter(m => m.server === CURRENT_SERVER);
             
-            // Only re-render if message count changed to keep animations smooth
-            // We use a simple diff here. In a real app we'd use IDs.
-            if(msgList.childElementCount !== serverMessages.length) {
+            // Check if messages for the current server have changed
+            const currentMsgCount = msgList.childElementCount;
+            const newMsgCount = serverMessages.length;
+
+            if(currentMsgCount !== newMsgCount) {
                 msgList.innerHTML = '';
                 serverMessages.forEach(msg => {
                     const msgDiv = document.createElement('div');
@@ -359,8 +442,10 @@
                     `;
                     msgList.appendChild(msgDiv);
                 });
-                // Scroll to bottom
-                msgList.scrollTop = msgList.scrollHeight;
+                // Scroll to bottom only if a new message arrived
+                if(newMsgCount > currentMsgCount) {
+                     msgList.scrollTop = msgList.scrollHeight;
+                }
             }
         }
 
@@ -370,12 +455,13 @@
             render(CURRENT_DATA);
         }
 
+        // --- MESSAGE SENDING ---
+
         inputField.addEventListener('keypress', async (e) => {
             if (e.key === 'Enter' && inputField.value.trim() !== "") {
                 const text = inputField.value;
                 inputField.value = "";
                 
-                // Optimistic UI Update (Make it feel instant)
                 const tempMsg = {
                     user: USERNAME,
                     text: text,
@@ -383,8 +469,9 @@
                     timestamp: new Date().toISOString()
                 };
                 
-                // Render immediately locally
-                const tempMessages = [...(CURRENT_DATA.messages || []), tempMsg];
+                // Optimistic UI Update
+                const tempMessages = [...(CURRENT_DATA.messages || [])];
+                tempMessages.push(tempMsg);
                 render({ ...CURRENT_DATA, messages: tempMessages });
 
                 // Fetch real data and push
@@ -396,13 +483,15 @@
                 if (updatedMessages.length > 100) updatedMessages.shift(); // Max 100 msgs
 
                 const payload = {
-                    servers: latestData.servers || ["General", "Gaming", "Music", "Code"],
+                    servers: latestData.servers || ["General"],
                     messages: updatedMessages
                 };
 
                 await sendData(payload);
             }
         });
+
+        // --- UTILITY ---
 
         function escapeHtml(text) {
             if (!text) return text;
@@ -413,6 +502,8 @@
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
         }
+
+        // --- POLLING ---
 
         let pollingInterval;
         function startPolling() {
